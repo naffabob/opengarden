@@ -23,17 +23,18 @@ ACTION_GENERATE = 'generate'
 ACTION_CONFIG_DEV = 'config_dev'
 ACTION_CONFIG_ALL = 'config_all'
 
-RESOURCES_FILE = 'og_resources.txt'
+RESOURCES_FILE = 'resources.txt'
 NETWORKS_FILE = 'networks.txt'
+FAILED_FILE = 'failed_domains.txt'
 
 
-def resolve_resources(resources_file, networks_file):
+def resolve_resources():
     ips = set()
     domains = set()
 
     ip_pattern = r'\d{1,}\.\d{1,}\.\d{1,}\.\d{1,}'
 
-    with open(resources_file, 'r') as f:
+    with open(RESOURCES_FILE, 'r') as f:
         resources = f.read().splitlines()
 
     for resource in resources:
@@ -44,13 +45,23 @@ def resolve_resources(resources_file, networks_file):
         else:
             domains.add(resource)
 
-    resolved_ips = resolver.resolve_domains(domains)
+    try:
+        resolved_ips, failed_domains = resolver.resolve_domains(domains)
+    except ValueError as e:
+        raise SystemExit(e)
+
     ips.update(resolved_ips)
 
-    with open(networks_file, 'w') as f:
+    with open(NETWORKS_FILE, 'w') as f:
         for ip in ips:
             f.write(f'{ip}\n')
-    print(f'{len(ips)} networks saved to {networks_file}')
+
+    with open(FAILED_FILE, 'w') as f:
+        for domain in failed_domains:
+            f.write(f'{domain}\n')
+
+    print(f'{len(ips)} networks saved to {NETWORKS_FILE}.')
+    print(f'{len(failed_domains)} FILED domains saved to {FAILED_FILE}.')
 
 
 def get_netbox_device(hostname: str):
@@ -73,7 +84,7 @@ if __name__ == '__main__':
     action = sys.argv[1]
 
     if action == ACTION_RESOLVE:
-        resolve_resources(resources_file=RESOURCES_FILE, networks_file=NETWORKS_FILE)
+        resolve_resources()
 
     elif action == ACTION_GENERATE:
         if len(sys.argv) < 3:
