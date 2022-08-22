@@ -8,7 +8,7 @@ def resolve_domain(domain: str) -> list:
     try:
         dns_resolver = resolver.Resolver()
     except resolver.NoResolverConfiguration as e:
-        raise ValueError(e) from None
+        raise ConnectionError(e) from None
 
     try:
         dns_answer = dns_resolver.resolve(domain)
@@ -26,7 +26,7 @@ def resolve_domain(domain: str) -> list:
         return []
 
     except exception.DNSException as e:
-        raise ValueError(e) from None
+        raise ConnectionError(e) from None
 
     resolved_ips = [x.address for x in dns_answer]
     return resolved_ips

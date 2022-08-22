@@ -1,10 +1,11 @@
 import re
 import sys
 
-import pynetbox
 from loguru import logger
+from requests.exceptions import ConnectionError
 
 import configurator
+import netbox_client
 import resolver
 
 logger.add(
@@ -47,7 +48,7 @@ def resolve_resources():
 
     try:
         resolved_ips, failed_domains = resolver.resolve_domains(domains)
-    except ValueError as e:
+    except ConnectionError as e:
         raise SystemExit(e)
 
     ips.update(resolved_ips)
@@ -61,20 +62,7 @@ def resolve_resources():
             f.write(f'{domain}\n')
 
     print(f'{len(ips)} networks saved to {NETWORKS_FILE}.')
-    print(f'{len(failed_domains)} FILED domains saved to {FAILED_FILE}.')
-
-
-def get_netbox_device(hostname: str):
-    try:
-        nb = pynetbox.api(NB_URL, NB_API_TOKEN)
-    except Exception as e:
-        logger.error(e)
-        quit(1)
-    dev = nb.dcim.devices.get(name=hostname)
-    if dev:
-        return dev
-    else:
-        raise SystemExit(f'No such device in Netbox.')
+    print(f'{len(failed_domains)} FAILED domains saved to {FAILED_FILE}.')
 
 
 if __name__ == '__main__':
@@ -100,8 +88,15 @@ if __name__ == '__main__':
 
     elif action == ACTION_CONFIG_DEV:
         hostname = sys.argv[2]
-        host = get_netbox_device(hostname)
+
+        nb = netbox_client.NetboxClient(NB_URL, NB_API_TOKEN)
+        host = nb.get_device(hostname)
+
+        if host is None:
+            raise SystemExit(f'No device in Netbox: {hostname}')
+
         vendor = host.device_type.manufacturer.name.lower()
+
         with open(NETWORKS_FILE, 'r') as f:
             ips = f.read().splitlines()
         print(configurator.generate_config(vendor, ips))
