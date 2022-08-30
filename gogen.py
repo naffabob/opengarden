@@ -84,7 +84,7 @@ if __name__ == '__main__':
 
         with open(NETWORKS_FILE, 'r') as f:
             ips = f.read().splitlines()
-        print(configurator.generate_config(vendor, ips))
+        print('\n'.join(configurator.generate_config(vendor, ips)))
 
     elif action == ACTION_CONFIG_DEV:
         hostname = sys.argv[2]
@@ -97,10 +97,16 @@ if __name__ == '__main__':
 
         vendor = host.device_type.manufacturer.name.lower()
 
+        host_ip = host.primary_ip4.address[:-3]
+
         with open(NETWORKS_FILE, 'r') as f:
-            ips = f.read().splitlines()
-        print(configurator.generate_config(vendor, ips))
-        raise SystemExit(f'NOT implemented {action}')
+            ips = {ip for ip in f.read().splitlines()}
+        print('\n'.join(configurator.generate_config(vendor, ips)))
+
+        if input(f'Configure {host.name} - {host_ip}? y/n: ') == 'y':
+            configurator.configure(host_ip, vendor, ips)
+        else:
+            raise SystemExit(f'Configure canceled')
 
     elif action == ACTION_CONFIG_ALL:
         raise SystemExit(f'NOT implemented {action}')
