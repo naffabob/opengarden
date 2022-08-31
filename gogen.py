@@ -1,3 +1,4 @@
+import getpass
 import re
 import sys
 
@@ -27,6 +28,9 @@ ACTION_CONFIG_ALL = 'config_all'
 RESOURCES_FILE = 'resources.txt'
 NETWORKS_FILE = 'networks.txt'
 FAILED_FILE = 'failed_domains.txt'
+
+USERNAME = None
+PASSWORD = None
 
 
 def resolve_resources():
@@ -84,7 +88,7 @@ if __name__ == '__main__':
 
         with open(NETWORKS_FILE, 'r') as f:
             ips = f.read().splitlines()
-        print('\n'.join(configurator.generate_config(vendor, ips)))
+        print('\n'.join(configurator.generate_config(vendor, set(ips))))
 
     elif action == ACTION_CONFIG_DEV:
         hostname = sys.argv[2]
@@ -101,12 +105,10 @@ if __name__ == '__main__':
 
         with open(NETWORKS_FILE, 'r') as f:
             ips = {ip for ip in f.read().splitlines()}
-        print('\n'.join(configurator.generate_config(vendor, ips)))
 
-        if input(f'Configure {host.name} - {host_ip}? y/n: ') == 'y':
-            configurator.configure(host_ip, vendor, ips)
-        else:
-            raise SystemExit(f'Configure canceled')
+        username = USERNAME or input('Username: ')
+        password = PASSWORD or getpass.getpass('Password: ')
+        configurator.configure(host_ip, vendor, ips, username, password)
 
     elif action == ACTION_CONFIG_ALL:
         raise SystemExit(f'NOT implemented {action}')

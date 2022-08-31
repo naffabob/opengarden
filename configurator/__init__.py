@@ -1,18 +1,15 @@
 import re
 from ipaddress import IPv4Network
-
+from tqdm import tqdm
 from loguru import logger
 from netmiko import ConnectHandler
-
-username = 'username'
-password = 'passwd'
 
 VENDOR_JUNIPER = 'juniper'
 VENDOR_CISCO = 'cisco'
 
 VENDORS = {VENDOR_JUNIPER, VENDOR_CISCO}
 
-# ACL names on brases
+# ACL names on brasses
 ACL_NAMES_OUT = [
     'OG-OUT',
     'FROM-OG',
@@ -51,13 +48,13 @@ def retrieve_acl_names(c: ConnectHandler) -> tuple:
     return og_in, og_out
 
 
-def configure(host: str, vendor: str, ips: set):
+def configure(host: str, vendor: str, ips: set, username: str, password: str):
     if vendor not in VENDORS:
         raise ValueError(f'Unknown vendor {vendor}')
     if vendor == VENDOR_CISCO:
-        return configure_cisco(host, ips)
+        return configure_cisco(host, ips, username, password)
     elif vendor == VENDOR_JUNIPER:
-        return configure_juniper(host, ips)
+        return configure_juniper(host, ips, username, password)
 
 
 def netlist_cisco(c: ConnectHandler, og_in: str, og_out: str) -> set:
@@ -103,7 +100,7 @@ def print_diff(current_ips: set, resolved_ips: set):
         print(ip)
 
 
-def configure_cisco(host: str, ips: set):
+def configure_cisco(host: str, ips: set, username: str, password: str):
     c = ConnectHandler(
         host=host,
         username=username,
@@ -124,13 +121,27 @@ def configure_cisco(host: str, ips: set):
         return
 
     commands = generate_cisco(ips, og_in, og_out)
-    c.send_config_set(commands)
-    c.send_command('copy running-config startup-config')
 
+    c.config_mode()
+
+    chunk_size = 25
+
+    for start_id in tqdm(range(0, len(commands), chunk_size)):
+        c.send_config_set(
+            commands[start_id:start_id + chunk_size],
+            enter_config_mode=False,
+            exit_config_mode=False,
+            cmd_verify=False,
+            read_timeout=25,
+        )
+
+    c.exit_config_mode()
+
+    c.send_command('write')
     c.disconnect()
 
 
-def configure_juniper(host: str, ips: set):
+def configure_juniper(host: str, ips: set, username: str, password: str):
     c = ConnectHandler(
         host=host,
         username=username,
