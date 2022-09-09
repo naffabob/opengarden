@@ -1,7 +1,12 @@
 import requests
 from pynetbox.core.api import Api
 from pynetbox.core.query import RequestError
+from pynetbox.models.dcim import Devices
 from requests.adapters import HTTPAdapter
+
+
+class NBException(Exception):
+    pass
 
 
 class TimeoutHTTPAdapter(HTTPAdapter):
@@ -30,12 +35,12 @@ class NetboxClient(Api):
 
         self.http_session = session
 
-    def get_device(self, hostname: str):
+    def get_device(self, hostname: str) -> Devices:
         try:
             return self.dcim.devices.get(name=hostname)
         except requests.exceptions.ConnectTimeout:
-            raise SystemExit(f'Netbox connection timeout: {self.base_url}') from None
+            raise NBException(f'Netbox connection timeout: {self.base_url}') from None
         except requests.exceptions.ConnectionError:
-            raise SystemExit(f'Unable to connect to Netbox: {self.base_url}') from None
+            raise NBException(f'Unable to connect to Netbox: {self.base_url}') from None
         except RequestError as e:
-            raise SystemExit(e) from None
+            raise NBException(e) from None

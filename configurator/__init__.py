@@ -1,8 +1,9 @@
 import re
 from ipaddress import IPv4Network
-from tqdm import tqdm
+
 from loguru import logger
 from netmiko import ConnectHandler
+from tqdm import tqdm
 
 VENDOR_JUNIPER = 'juniper'
 VENDOR_CISCO = 'cisco'
@@ -160,7 +161,7 @@ def configure_juniper(host: str, ips: set, username: str, password: str):
         return
 
     commands = generate_juniper(ips)
-
+    commands.append('commit')
     c.send_config_set(commands, config_mode_command='configure exclusive')
     c.disconnect()
 
@@ -205,5 +206,4 @@ def generate_juniper(ips: set) -> list:
         result.append(
             f'set groups rdr-nomoney-routes routing-instances <*> routing-options static route {ip} next-table inet.0'
         )
-    result.append('commit')
     return result
