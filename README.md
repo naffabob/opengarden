@@ -1,3 +1,8 @@
+# opengarden
+
+## Что это
+opengarden - внутренний скрипт NetByNet, позволяющий обновлять access-list'ы с ресурсами, доступными при нулевом балансе. 
+
 ## Применение
 
 `python gogen.py resolve`
@@ -21,3 +26,14 @@
 Зальет конфиг на все девайсы определенного вендора. 
 Список отрезовленных ip берется из файла *og_networks.txt*.
 Список девайсов будет взят из Netbox.
+
+## Установка
+Скачайте проект с bitbucket.org
+```
+git clone https://naffabob@bitbucket.org/naffabob/opengarden.git
+```
+
+Создайте виртуальное окружение и установите зависимости
+```commandline
+pip install -r requirements.txt
+```
