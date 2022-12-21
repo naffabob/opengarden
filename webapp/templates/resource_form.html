@@ -1,0 +1,46 @@
+{{ form.hidden_tag() }}
+<div class="mb-3">
+	{{ form.name.label }}
+	{{ form.name }}
+	{% if form.name.errors %}
+	{% for error in form.name.errors %}
+	<p class="text-danger">{{ error }}</p>
+	{% endfor %}
+	{% endif %}
+</div>
+<div class="mb-3">
+	{{ form.resource_type.label }}
+	{{ form.resource_type }}
+	{% if form.resource_type.errors %}
+	{% for error in form.resource_type.errors %}
+	<p class="text-danger">{{ error }}</p>
+	{% endfor %}
+	{% endif %}
+</div>
+<div class="mb-3">
+	{{ form.order.label }}
+	{{ form.order }}
+	{% if form.order.errors %}
+	{% for error in form.order.errors %}
+	<p class="text-danger">{{ error }}</p>
+	{% endfor %}
+	{% endif %}
+</div>
+<div class="mb-3">
+	{{ form.added_date.label }}
+	{{ form.added_date }}
+	{% if form.added_date.errors %}
+	{% for error in form.added_date.errors %}
+	<p class="text-danger">{{ error }}</p>
+	{% endfor %}
+	{% endif %}
+</div>
+<div class="mb-3">
+	{{ form.description.label }}
+	{{ form.description }}
+	{% if form.description.errors %}
+	{% for error in form.description.errors %}
+	<p class="text-danger">{{ error }}</p>
+	{% endfor %}
+	{% endif %}
+</div>

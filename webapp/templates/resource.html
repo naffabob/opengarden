@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<div class="row">
+	<div class="col-md-6 pb-3">
+		<h3>Resource info</h3>
+		<form class="row mb-3 gx-2" method="POST">
+
+			{% include 'resource_form.html' %}
+
+			<div class="mb-3">
+				<button type="submit" class="btn btn-success" name="action" value="update_resource">
+					<i class="bi bi-check-circle"></i> Update
+				</button>
+				<!-- Button trigger modal -->
+				<button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#configModal">
+					<i class="bi bi-dash-circle"></i> Delete
+				</button>
+				<!-- Modal -->
+				<div class="modal fade" id="configModal" tabindex="-1" aria-labelledby="configModalLabel" aria-hidden="true">
+					<form method="POST">
+						<div class="modal-dialog">
+							<div class="modal-content">
+								<div class="modal-header">
+									<h1 class="modal-title fs-5" id="configModalLabel">Delete resource</h1>
+									<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+								</div>
+								<div class="modal-body">
+									<p>Are you confirm to delete {{ resource.name }}?</p>
+									<p class="text-muted fw-light">All resolved IPs of this resource will be deleted too</p>
+								</div>
+								<div class="modal-footer">
+									<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+									<button type="submit" class="btn btn-danger" name="action" value="delete_resource">
+										<i class="bi bi-dash-circle"></i> Delete
+									</button>
+								</div>
+							</div>
+						</div>
+					</form>
+				</div>
+			</div>
+		</form>
+	</div>
+	<div class="col-md-6 pb-3">
+		<form class="row mb-3 gx-3" method="POST">
+			<div class="col-auto">
+				<h3>Resolved IPs</h3>
+			</div>
+			<div class="col-auto">
+				<button type="submit" class="btn btn-warning" name="action" value="resolve_resource">
+					<i class="bi bi-arrow-clockwise"></i> Resolve
+				</button>
+			</div>
+		</form>
+		<p class="font-monospace">
+			{% for ip in resource.ips %}
+			{{ ip.ip }}<br>
+			{% endfor %}
+		</p>
+	</div>
+</div>
+
+{% endblock %}

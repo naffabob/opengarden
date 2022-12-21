@@ -1,9 +1,12 @@
 import re
+from enum import Enum
 from ipaddress import IPv4Network
 
 from loguru import logger
 from netmiko import ConnectHandler
 from tqdm import tqdm
+
+import netbox_client
 
 VENDOR_JUNIPER = 'juniper'
 VENDOR_CISCO = 'cisco'
@@ -34,6 +37,12 @@ ACL_NAMES_IN = [
 ]
 
 
+class Status(Enum):
+    OK = 1
+    NOACL = 2
+    UPTODATE = 3
+
+
 def retrieve_acl_names(c: ConnectHandler) -> tuple:
     og_in = ''
     og_out = ''
@@ -61,7 +70,7 @@ def configure(host: str, vendor: str, ips: set, username: str, password: str):
 def netlist_cisco(c: ConnectHandler, og_in: str, og_out: str) -> set:
     result = set()
     host_regexp = r'\d+\.\d+\.\d+\.\d+'
-    data = c.send_config_set([f'show ip access-lists {og_in}', f'show ip access-lists {og_out}'])
+    data = c.send_config_set([f'do show ip access-lists {og_in}', f'show ip access-lists {og_out}'])    # Enters in config mode
     for line in data.splitlines():
         if 'permit' in line:
             ip_mask = re.findall(host_regexp, line)
@@ -90,15 +99,68 @@ def netlist_juniper(c: ConnectHandler) -> set:
     return result
 
 
+def get_diff(host: str, vendor: str, resolved_ips: set, username: str, password: str) -> dict:
+    diff_dict = {
+        'status': Status.OK,
+        'to_delete': set(),
+        'to_add': set(),
+    }
+
+    if vendor not in VENDORS:
+        raise ValueError(f'Unknown vendor {vendor}')
+    if vendor == VENDOR_CISCO:
+        c = ConnectHandler(
+            host=host,
+            username=username,
+            password=password,
+            device_type='cisco_ios_telnet',
+        )
+        og_in, og_out = retrieve_acl_names(c)
+
+        if not og_in and not og_out:
+            diff_dict['status'] = Status.NOACL
+            return diff_dict
+
+        current_ips = netlist_cisco(c, og_in, og_out)
+
+        if current_ips == resolved_ips:
+            diff_dict['status'] = Status.UPTODATE
+            return diff_dict
+
+        diff_dict['to_delete'] = sorted(current_ips - resolved_ips)
+        diff_dict['to_add'] = sorted(resolved_ips - current_ips)
+
+    elif vendor == VENDOR_JUNIPER:
+        c = ConnectHandler(
+            host=host,
+            username=username,
+            password=password,
+            device_type='juniper_junos',
+        )
+
+        current_ips = netlist_juniper(c)
+
+        if current_ips == resolved_ips:
+            diff_dict['status'] = Status.UPTODATE
+            return diff_dict
+
+        diff_dict['to_delete'] = sorted(current_ips - resolved_ips)
+        diff_dict['to_add'] = sorted(resolved_ips - current_ips)
+
+    return diff_dict
+
+
 def print_diff(current_ips: set, resolved_ips: set):
     to_delete = current_ips - resolved_ips
     to_add = resolved_ips - current_ips
-    print('IPs to delete:')
+    print('IPs to delete:')  # For console user interface
     for ip in to_delete:
         print(ip)
-    print('IPs to add:')
+    print('IPs to add:')  # For console user interface
     for ip in to_add:
         print(ip)
+
+    return to_delete, to_add
 
 
 def configure_cisco(host: str, ips: set, username: str, password: str):
@@ -166,13 +228,33 @@ def configure_juniper(host: str, ips: set, username: str, password: str):
     c.disconnect()
 
 
-def generate_config(vendor: str, ips: set, ) -> list:
+def generate_config(vendor: str, ips: set, host: str, username: str, password: str) -> dict:
+    config = {
+        'status': Status.OK,
+        'config_lines': []
+    }
+
     if vendor not in VENDORS:
         raise ValueError(f'Unknown vendor {vendor}')
     if vendor == VENDOR_CISCO:
-        return generate_cisco(ips, '<OG-IN-ACL-NAME>', '<OG-OUT-ACL-NAME>')
+        c = ConnectHandler(
+            host=host,
+            username=username,
+            password=password,
+            device_type='cisco_ios_telnet',
+        )
+        og_in, og_out = retrieve_acl_names(c)
+
+        if not og_in and not og_out:
+            config['status'] = Status.NOACL
+            return config
+
+        config['config_lines'] = generate_cisco(ips, og_in, og_out)
+        return config
+
     elif vendor == VENDOR_JUNIPER:
-        return generate_juniper(ips)
+        config['config_lines'] = generate_juniper(ips)
+        return config
 
 
 def generate_cisco(ips: set, acl_name_in: str, acl_name_out: str) -> list:
@@ -207,3 +289,18 @@ def generate_juniper(ips: set) -> list:
             f'set groups rdr-nomoney-routes routing-instances <*> routing-options static route {ip} next-table inet.0'
         )
     return result
+
+
+def get_juniper_hosts(nb: netbox_client, allowed_routers: list) -> list[netbox_client]:
+    juniper_hosts = []
+
+    for router in allowed_routers:
+        try:
+            host = nb.get_device(router)
+        except netbox_client.NBException as e:
+            raise SystemExit(e)
+        if host is None:
+            raise SystemExit(f'No device in Netbox: {host}')
+
+        juniper_hosts.append(host)
+    return juniper_hosts

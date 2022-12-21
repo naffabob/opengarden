@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+.console_text, .console_text:focus {
+	color: #ebebeb;
+	background-color: #333333;
+	padding: 10px;
+	border-radius: 5px;
+	font-family: monospace;
+}
+</style>
+
+<div class="container mt-3">
+	<form class="row mb-3 gx-2" method="POST">
+
+		<div class="col-auto">
+			<h3>{{ host.name }}</h3>
+		</div>
+		<div class="col-auto">
+			<button type="submit" class="btn btn-warning" name="action" value="diff">Diff</button>
+		</div>
+		<div class="col-auto">
+			<button type="submit" class="btn btn-secondary" name="action" value="generate">Generate</button>
+		</div>
+
+	</form>
+
+	{% if diff %}
+
+	{% if diff['status'].name == 'NOACL' %}
+	<div class="alert alert-secondary" role="alert">
+		No OPENGARDEN ACL found for this device
+	</div>
+
+	{% elif diff['status'].name == 'UPTODATE' %}
+	<div class="alert alert-primary" role="alert">
+		Config is up to date with resolved IPs
+	</div>
+
+	{% else %}
+	<div class="alert alert-info" role="alert">
+		There are differences in the device ACL and resolved IPs
+	</div>
+
+	<div class="row mb-3">
+		<div class="col-auto">
+			<p>To delete: [count {{ diff['to_delete']|count }}]</p>
+			<p class="font-monospace">
+				{% for ip in diff['to_delete'] %}
+				{{ ip }}<br>
+				{% endfor %}
+			</p>
+		</div>
+		<div class="col-auto">
+			<p>To delete: [count {{ diff['to_add']|count }}]</p>
+			<p class="font-monospace">
+				{% for ip in diff['to_add'] %}{{ ip }}<br>
+				{% endfor %}
+			</p>
+		</div>
+	</div>
+	{% endif %}
+	{% endif %}
+
+	{% if device_config %}
+
+	{% if device_config['status'].name == 'NOACL' %}
+	<div class="alert alert-secondary" role="alert">
+		No OPENGARDEN ACL found for this device
+	</div>
+
+	{% else %}
+	<div class="row mb-3">
+		<p class="text-start console_text">
+			{% for config_line in device_config['config_lines'] %}{{ config_line }}<br>{% endfor %}
+		</p>
+	</div>
+
+	{% endif %}
+	{% endif %}
+
+</div>
+{% endblock %}

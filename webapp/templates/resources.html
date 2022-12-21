@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h3>Resources</h3>
+<form class="row mb-3 gx-2" method="POST">
+	{{ form.hidden_tag() }}
+	<div class="col-auto">
+		<label for="name" class="form-label">Name</label><br>
+		{{ form.name }}
+		{% if form.name.errors %}
+		{% for error in form.name.errors %}
+		<p class="text-danger">{{ error }}</p>
+		{% endfor %}
+		{% endif %}
+	</div>
+	<div class="col-auto">
+		<label for="type" class="form-label">Type</label><br>
+		{{ form.resource_type }}
+		{% if form.resource_type.errors %}
+		{% for error in form.resource_type.errors %}
+		<p class="text-danger">{{ error }}</p>
+		{% endfor %}
+		{% endif %}
+	</div>
+	<div class="col-auto">
+		<label for="type" class="form-label">Order</label><br>
+		{{ form.order }}
+		{% if form.order.errors %}
+		{% for error in form.order.errors %}
+		<p class="text-danger">{{ error }}</p>
+		{% endfor %}
+		{% endif %}
+	</div>
+	<div class="col-auto">
+		<label for="type" class="form-label">Added date</label><br>
+		{{ form.added_date }}
+		{% if form.added_date.errors %}
+		{% for error in form.added_date.errors %}
+		<p class="text-danger">{{ error }}</p>
+		{% endfor %}
+		{% endif %}
+	</div>
+	<div class="col-auto">
+		<label for="type" class="form-label">Description</label><br>
+		{{ form.description }}
+		{% if form.description.errors %}
+		{% for error in form.description.errors %}
+		<p class="text-danger">{{ error }}</p>
+		{% endfor %}
+		{% endif %}
+	</div>
+	<div class="col-auto">
+		<label class="form-label">&nbsp;</label><br>
+		<button type="submit" class="btn btn-outline-success" name="action" value="add_resource">
+			<i class="bi bi-check-circle"></i> Add
+		</button>
+	</div>
+</form>
+
+
+<table class="table">
+	<thead>
+	<tr>
+		<th scope="col">Name</th>
+		<th scope="col">Type</th>
+		<th scope="col">Status</th>
+		<th scope="col">Resolve time</th>
+		<th scope="col">IPs</th>
+		<th scope="col">Order</th>
+		<th scope="col">Add date</th>
+		<th scope="col">Description</th>
+		<th scope="col"></th>
+	</tr>
+	</thead>
+	<tbody>
+	{% for resource in resources %}
+	<tr>
+		<td><a href="{{ url_for('resource_view', resource_id=resource.id) }}">{{ resource.name }}</a></td>
+		<td>{{ resource.resource_type }}</td>
+		<td>{{ resource.status }}</td>
+		<td>{{ resource.resolve_time.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+		<td>{{ resource[8] }}</td>
+		<td>{{ resource.order or '-'}}</td>
+		<td>{{ resource.added_date or '-'}}</td>
+		<td>{{ resource.description or '-' }}</td>
+		<td>
+			<!-- Button trigger modal -->
+			<button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#configModal{{resource.id}}">
+				<i class="bi bi-trash3"></i>
+			</button>
+
+			<!-- Modal -->
+			<div class="modal fade" id="configModal{{resource.id}}" tabindex="-1" aria-labelledby="configModalLabel" aria-hidden="true">
+				<form method="POST" action="{{ url_for('delete_resource_view', resource_id=resource.id) }}">
+					<div class="modal-dialog">
+						<div class="modal-content">
+							<div class="modal-header">
+								<h1 class="modal-title fs-5" id="configModalLabel">Delete resource</h1>
+								<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+							</div>
+							<div class="modal-body">
+								<p>Are you confirm to delete resource?</p>
+								<p class="text-muted fw-light">All resolved ips of this resource will be deleted</p>
+							</div>
+							<div class="modal-footer">
+								<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+								<button type="submit" class="btn btn-danger" name="action" value="delete_resource">
+									<i class="bi bi-dash-circle"></i> Delete
+								</button>
+							</div>
+						</div>
+					</div>
+				</form>
+			</div>
+		</td>
+	</tr>
+
+	{% endfor %}
+
+	</tbody>
+</table>
+
+{% endblock %}
