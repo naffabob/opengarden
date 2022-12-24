@@ -4,6 +4,7 @@ __pycache__/
 
 *.log
 *.db
+settings.py
 networks.txt
 resources.txt
 failed_domains.txt
