@@ -13,7 +13,6 @@ class Resource(db.Model):
 
     STATUS_ERROR = 'error'
     STATUS_RESOLVED = 'resolved'
-    STATUS_UNRESOLVED = 'unresolved'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, unique=True, nullable=False)
@@ -54,6 +53,8 @@ class Resource(db.Model):
 
         self.resolve_time = datetime.now()
 
+        resolved_ips = set()
+
         try:
             resolved_ips = self.get_resolved_ips()
 
@@ -63,10 +64,10 @@ class Resource(db.Model):
             raise
 
         except DNSResolveError:
-            self.status = self.STATUS_UNRESOLVED
+            # Resource resolved, but have no RR or RRSets
+            self.status = self.STATUS_RESOLVED
             IP.query.filter(IP.resource_id == self.id).delete()
             db.session.commit()
-            raise
 
         else:
             self.status = self.STATUS_RESOLVED

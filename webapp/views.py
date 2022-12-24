@@ -4,7 +4,7 @@ from sqlalchemy.sql import func
 
 import configurator
 import netbox_client
-from resolver import DNSConnectionError, DNSResolveError
+from resolver import DNSConnectionError
 from webapp import app
 from webapp.forms import ResourceForm
 from webapp.models import db, Resource, IP
@@ -52,12 +52,10 @@ def resources_view():
 
                 try:
                     resource.update_ips()
-                except DNSResolveError:
-                    flash('Could not resolve domain name', category='error')
                 except DNSConnectionError:
                     flash('DNS is unreachable', category='error')
                 else:
-                    flash('Resource successfully resolved', category='success')
+                    flash('Resource successfully added', category='success')
 
                 return redirect(back)
 
@@ -100,12 +98,10 @@ def resource_view(resource_id):
 
                 try:
                     resource.update_ips()
-                except DNSResolveError:
-                    flash('Could not resolve domain name', category='error')
                 except DNSConnectionError:
                     flash('DNS is unreachable', category='error')
                 else:
-                    flash('Resource successfully resolved', category='success')
+                    flash('Resource successfully updated', category='success')
 
             return redirect(back)
 
@@ -120,12 +116,8 @@ def resource_view(resource_id):
 
             try:
                 resource.update_ips()
-            except DNSResolveError:
-                flash('Could not resolve domain name', category='error')
             except DNSConnectionError:
                 flash('DNS is unreachable', category='error')
-            else:
-                flash('Resource successfully resolved', category='success')
 
             return redirect(back)
 

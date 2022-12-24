@@ -22,8 +22,8 @@ def resolve_domain(domain: str) -> list:
         dns_answer = dns_resolver.resolve(domain)
 
     except (
-            resolver.NXDOMAIN,  # The DNS query name does not exist.
-            resolver.NoAnswer,  # The DNS response does not contain an answer to the question.
+            resolver.NXDOMAIN,  # The DNS query name does not exist. No RR for domain
+            resolver.NoAnswer,  # The DNS response does not contain an answer to the question. No RRSets for domain
     ):
         raise DNSResolveError from None
 
