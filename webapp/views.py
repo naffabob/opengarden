@@ -6,7 +6,7 @@ import configurator
 import netbox_client
 from resolver import DNSConnectionError
 from webapp import app
-from webapp.forms import ResourceForm
+from webapp.forms import ResourceForm, ResourceType
 from webapp.models import db, Resource, IP
 from webapp.settings import PREFIX, NB_URL, NB_API_TOKEN, NB_CISCO, NB_BRASS_ID, JUNIPER_ROUTERS, username, password
 
@@ -176,8 +176,12 @@ def device_view(hostname):
             return render_template('device.html', host=host, diff=diff)
 
         if action == 'generate':
-            ips = IP.query.all()
-            resolved_ips = set(ip.ip for ip in ips)
+            typed_ips_dict = {}
+            for res_type in ResourceType:
+                query = db.session.query(IP.ip) \
+                    .filter(Resource.resource_type == res_type.name) \
+                    .join(Resource, Resource.id == IP.resource_id)
+                typed_ips_dict[res_type.name] = sorted(ip.ip for ip in query)
 
             vendor = host.device_type.manufacturer.name.lower()
 
@@ -186,7 +190,7 @@ def device_view(hostname):
                 username=username,
                 password=password,
                 vendor=vendor,
-                ips=resolved_ips,
+                typed_ips=typed_ips_dict,
             )
 
             return render_template('device.html', host=host, device_config=device_config)

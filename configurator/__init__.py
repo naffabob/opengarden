@@ -228,7 +228,7 @@ def configure_juniper(host: str, ips: set, username: str, password: str):
     c.disconnect()
 
 
-def generate_config(vendor: str, ips: set, host: str, username: str, password: str) -> dict:
+def generate_config(vendor: str, typed_ips: dict, host: str, username: str, password: str) -> dict:
     config = {
         'status': Status.OK,
         'config_lines': []
@@ -249,15 +249,15 @@ def generate_config(vendor: str, ips: set, host: str, username: str, password: s
             config['status'] = Status.NOACL
             return config
 
-        config['config_lines'] = generate_cisco(ips, og_in, og_out)
+        config['config_lines'] = generate_cisco(typed_ips, og_in, og_out)
         return config
 
     elif vendor == VENDOR_JUNIPER:
-        config['config_lines'] = generate_juniper(ips)
+        config['config_lines'] = generate_juniper(typed_ips)
         return config
 
 
-def generate_cisco(ips: set, acl_name_in: str, acl_name_out: str) -> list:
+def generate_cisco(typed_ips: dict, acl_name_in: str, acl_name_out: str) -> list:
     og_out = [
         f'no ip access-list extended {acl_name_out}',
         f'ip access-list extended {acl_name_out}',
@@ -267,27 +267,31 @@ def generate_cisco(ips: set, acl_name_in: str, acl_name_out: str) -> list:
         f'ip access-list extended {acl_name_in}',
     ]
 
-    for ip in ips:
-        if '/' in ip:
-            net = IPv4Network(ip)
-            og_out.append(f'permit ip {net.network_address} {net.hostmask} any')
-            og_in.append(f'permit ip any {net.network_address} {net.hostmask}')
-        else:
-            og_out.append(f'permit ip host {ip} any')
-            og_in.append(f'permit ip any host {ip}')
+    for ips_type, ips in typed_ips.items():
+        og_out.append(f'remark {ips_type} resources')
+        og_in.append(f'remark {ips_type} resources')
+        for ip in ips:
+            if '/' in ip:
+                net = IPv4Network(ip)
+                og_out.append(f'permit ip {net.network_address} {net.hostmask} any')
+                og_in.append(f'permit ip any {net.network_address} {net.hostmask}')
+            else:
+                og_out.append(f'permit ip host {ip} any')
+                og_in.append(f'permit ip any host {ip}')
     og_out.append('deny ip any any')
     og_in.append('deny ip any any')
-    return og_in + og_out
+    return og_in + ['\n'] + og_out
 
 
-def generate_juniper(ips: set) -> list:
+def generate_juniper(typed_ips: dict) -> list:
     result = ['delete groups rdr-nomoney-routes routing-instances <*> routing-options static']
-    for ip in ips:
-        if '/' not in ip:
-            ip += '/32'
-        result.append(
-            f'set groups rdr-nomoney-routes routing-instances <*> routing-options static route {ip} next-table inet.0'
-        )
+    for ips_type, ips in typed_ips.items():
+        for ip in ips:
+            if '/' not in ip:
+                ip += '/32'
+            result.append(
+                f'set groups rdr-nomoney-routes routing-instances <*> routing-options static route {ip} next-table inet.0'
+            )
     return result
 
 
