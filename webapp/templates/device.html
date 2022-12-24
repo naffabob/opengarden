@@ -53,7 +53,7 @@
 			</p>
 		</div>
 		<div class="col-auto">
-			<p>To delete: [count {{ diff['to_add']|count }}]</p>
+			<p>To add: [count {{ diff['to_add']|count }}]</p>
 			<p class="font-monospace">
 				{% for ip in diff['to_add'] %}{{ ip }}<br>
 				{% endfor %}

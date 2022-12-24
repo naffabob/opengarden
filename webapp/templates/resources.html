@@ -33,7 +33,7 @@
 		{% endif %}
 	</div>
 	<div class="col-auto">
-		<label for="type" class="form-label">Added date</label><br>
+		<label for="type" class="form-label">Add date</label><br>
 		{{ form.added_date }}
 		{% if form.added_date.errors %}
 		{% for error in form.added_date.errors %}
@@ -63,10 +63,9 @@
 	<thead>
 	<tr>
 		<th scope="col">Name</th>
-		<th scope="col">Type</th>
-		<th scope="col">Status</th>
 		<th scope="col">Resolve time</th>
 		<th scope="col">IPs</th>
+		<th scope="col">Type</th>
 		<th scope="col">Order</th>
 		<th scope="col">Add date</th>
 		<th scope="col">Description</th>
@@ -75,12 +74,11 @@
 	</thead>
 	<tbody>
 	{% for resource in resources %}
-	<tr>
+	<tr class="{% if resource.status == 'error' %}table-danger{% endif %}">
 		<td><a href="{{ url_for('resource_view', resource_id=resource.id) }}">{{ resource.name }}</a></td>
-		<td>{{ resource.resource_type }}</td>
-		<td>{{ resource.status }}</td>
-		<td>{{ resource.resolve_time.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+		<td>{{ resource.resolve_time.strftime("%Y-%m-%d %H:%M") }}</td>
 		<td>{{ resource[8] }}</td>
+		<td>{{ resource.resource_type }}</td>
 		<td>{{ resource.order or '-'}}</td>
 		<td>{{ resource.added_date or '-'}}</td>
 		<td>{{ resource.description or '-' }}</td>

@@ -25,7 +25,10 @@ def resources_view():
         Resource.resolve_time,
         Resource.description,
         func.count(IP.resource_id)
-    ).join(Resource.ips, isouter=True).group_by(Resource.id)
+    ) \
+        .join(Resource.ips, isouter=True) \
+        .group_by(Resource.id) \
+        .order_by(Resource.name)
 
     input_form = ResourceForm(obj=request.form)
 
@@ -36,7 +39,7 @@ def resources_view():
         if action == 'add_resource':
             if input_form.validate_on_submit():
                 resource = Resource()
-                resource.name = input_form.name.data
+                resource.name = input_form.name.data.strip()
                 resource.resource_type = input_form.resource_type.data
                 resource.status = resource.STATUS_ERROR
                 resource.order = input_form.order.data
@@ -84,7 +87,7 @@ def resource_view(resource_id):
 
         if action == 'update_resource':
             if form.validate_on_submit():
-                resource.name = form.name.data
+                resource.name = form.name.data.strip()
                 resource.resource_type = form.resource_type.data
                 resource.order = form.order.data
                 resource.added_date = form.added_date.data

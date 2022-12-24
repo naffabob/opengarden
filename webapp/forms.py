@@ -2,7 +2,7 @@ from enum import Enum
 
 from flask_wtf import FlaskForm
 from wtforms import SelectField, StringField, DateField, widgets
-from wtforms.validators import DataRequired, Optional
+from wtforms.validators import DataRequired, Optional, Length
 
 
 class ResourceType(Enum):
@@ -14,7 +14,7 @@ class ResourceType(Enum):
 
 class ResourceForm(FlaskForm):
     name = StringField(
-        validators=[DataRequired()],
+        validators=[DataRequired(), Length(min=1, max=30)],
         render_kw={'class': 'form-control'},
     )
 
@@ -27,8 +27,11 @@ class ResourceForm(FlaskForm):
     order = StringField(render_kw={'class': 'form-control'})
     added_date = DateField(
         validators=[Optional()],
-        render_kw={'class': 'form-control'},
+        render_kw={'class': 'form-control', 'placeholder': 'yyyy-mm-dd'},
         widget=widgets.TextInput(),
         format='%Y-%m-%d')
     resolve_time = DateField(render_kw={'class': 'form-control'})
-    description = StringField(render_kw={'class': 'form-control'})
+    description = StringField(
+        validators=[Length(min=1, max=200)],
+        render_kw={'class': 'form-control'}
+    )

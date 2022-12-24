@@ -55,9 +55,20 @@
 			</div>
 		</form>
 		<p class="font-monospace">
+			Last resolve time: {{ resource.resolve_time.strftime("%Y-%m-%d %H:%M:%S") }}
+		</p>
+		<p class="font-monospace">
+			Last resolve status: {{ resource.status }}
+		</p>
+		<p class="font-monospace">
+			Resolved IPs:<br>
+			{% if resource.ips %}
 			{% for ip in resource.ips %}
 			{{ ip.ip }}<br>
 			{% endfor %}
+			{% else %}
+			<span class="text-secondary">Empty</span>
+			{% endif %}
 		</p>
 	</div>
 </div>
