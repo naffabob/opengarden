@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from flask import render_template, url_for, request, flash, redirect, abort
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import func
@@ -44,7 +42,6 @@ def resources_view():
                 resource.order = input_form.order.data
                 resource.added_date = input_form.added_date.data
                 resource.description = input_form.description.data
-
                 db.session.add(resource)
 
                 try:
@@ -53,30 +50,14 @@ def resources_view():
                     flash('Already exists.', category='error')
                     return redirect(back)
 
-                resource.resolve_time = datetime.now()
-                resolved_ips = set()
-
                 try:
-                    resolved_ips = resource.resolve()
-                    resource.status = resource.STATUS_RESOLVED
-                    flash('Resource successfully resolved', category='success')
-
-                except DNSConnectionError:
-                    resource.status = resource.STATUS_ERROR
-                    flash('DNS is unreachable. Resource added in error status', category='error')
-
+                    resource.update_ips()
                 except DNSResolveError:
-                    resource.status = resource.STATUS_UNRESOLVED
-                    flash('Cannot resolve domain name. Resource added as unresolved', category='error')
-
-                if resolved_ips:
-                    for resolved_ip in resolved_ips:
-                        ip = IP()
-                        ip.ip = resolved_ip
-                        ip.resource_id = resource.id
-                        db.session.add(ip)
-
-                db.session.commit()
+                    flash('Could not resolve domain name', category='error')
+                except DNSConnectionError:
+                    flash('DNS is unreachable', category='error')
+                else:
+                    flash('Resource successfully resolved', category='success')
 
                 return redirect(back)
 
@@ -117,43 +98,14 @@ def resource_view(resource_id):
                     flash('Already exists.', category='error')
                     return redirect(back)
 
-                if resource.ips:
-                    resource_ips_db = IP.query.filter(IP.resource_id == resource.id).all()
-                    resource_ips = {ip.ip for ip in resource_ips_db}
-                else:
-                    resource_ips = set()
-
-                resolved_ips = set()
-                resource.resolve_time = datetime.now()
-
                 try:
-                    resolved_ips = resource.resolve()
-                    resource.status = resource.STATUS_RESOLVED
-                    flash('Resolved', category='success')
-
-                except DNSConnectionError:
-                    resource.status = resource.STATUS_ERROR
-                    flash('DNS is unreachable', category='error')
-
+                    resource.update_ips()
                 except DNSResolveError:
-                    resource.status = resource.STATUS_UNRESOLVED
-                    IP.query.filter(IP.resource_id == resource_id).delete()
-                    flash('Cannot resolve domain name. Resource in unresolved status', category='error')
-
-                if resolved_ips:
-                    ips_to_add = resolved_ips - set(resource_ips)
-                    ips_to_delete = set(resource_ips) - resolved_ips
-
-                    for ip_to_delete in ips_to_delete:
-                        IP.query.filter(IP.ip == ip_to_delete, IP.resource_id == resource.id).delete()
-
-                    for ip_to_add in ips_to_add:
-                        ip = IP()
-                        ip.ip = ip_to_add
-                        ip.resource_id = resource.id
-                        db.session.add(ip)
-
-                db.session.commit()
+                    flash('Could not resolve domain name', category='error')
+                except DNSConnectionError:
+                    flash('DNS is unreachable', category='error')
+                else:
+                    flash('Resource successfully resolved', category='success')
 
             return redirect(back)
 
@@ -165,6 +117,16 @@ def resource_view(resource_id):
             return redirect(url_for('resources_view'))
 
         if action == 'resolve_resource':
+
+            try:
+                resource.update_ips()
+            except DNSResolveError:
+                flash('Could not resolve domain name', category='error')
+            except DNSConnectionError:
+                flash('DNS is unreachable', category='error')
+            else:
+                flash('Resource successfully resolved', category='success')
+
             return redirect(back)
 
     return render_template('resource.html', form=form, resource=resource)

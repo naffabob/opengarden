@@ -1,8 +1,9 @@
 import re
+from datetime import datetime
 
 from flask_sqlalchemy import SQLAlchemy
 
-from resolver import resolve_domain
+from resolver import resolve_domain, DNSResolveError, DNSConnectionError
 
 db = SQLAlchemy()
 
@@ -27,7 +28,7 @@ class Resource(db.Model):
     def __repr__(self):
         return f'<Resource {self.resource}>'
 
-    def resolve(self):
+    def get_resolved_ips(self) -> set:
         resolved = set()
 
         ip_pattern = r'\d{1,}\.\d{1,}\.\d{1,}\.\d{1,}'
@@ -43,6 +44,47 @@ class Resource(db.Model):
             resolved = set(resolved_ips)
 
         return resolved
+
+    def update_ips(self):
+        if self.ips:
+            resource_ips_db = IP.query.filter(IP.resource_id == self.id).all()
+            resource_ips = {ip.ip for ip in resource_ips_db}
+        else:
+            resource_ips = set()
+
+        self.resolve_time = datetime.now()
+
+        try:
+            resolved_ips = self.get_resolved_ips()
+
+        except DNSConnectionError:
+            self.status = self.STATUS_ERROR
+            db.session.commit()
+            raise
+
+        except DNSResolveError:
+            self.status = self.STATUS_UNRESOLVED
+            IP.query.filter(IP.resource_id == self.id).delete()
+            db.session.commit()
+            raise
+
+        else:
+            self.status = self.STATUS_RESOLVED
+
+        if resolved_ips:
+            ips_to_add = resolved_ips - set(resource_ips)
+            ips_to_delete = set(resource_ips) - resolved_ips
+
+            for ip_to_delete in ips_to_delete:
+                IP.query.filter(IP.ip == ip_to_delete, IP.resource_id == self.id).delete()
+
+            for ip_to_add in ips_to_add:
+                ip = IP()
+                ip.ip = ip_to_add
+                ip.resource_id = self.id
+                db.session.add(ip)
+
+        db.session.commit()
 
 
 class IP(db.Model):
