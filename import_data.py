@@ -1,7 +1,10 @@
 import csv
+import time
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy.exc import IntegrityError
+from tqdm import tqdm
 
 from resolver import DNSConnectionError
 from webapp import app
@@ -22,22 +25,23 @@ def parse_date(data: str) -> datetime:
 
 # Убрать https:// в начале ресурсов
 def normalize_http_https(data: str) -> str:
-    data = data.split('://')[1]
-    return data
+    normalized_data = data.split('://')[1]
+    return normalized_data
 
 
 # Преобразовать name с '/' в name, без '/'
 def normalize_url(data: str) -> str:
-    data = data.split('/')[0]
-    return data
+    normalized_data = data.split('/')[0]
+    return normalized_data
 
 
 # Убрать ',' и ' ' , '/' в ресурсах
 def normalize_simbols(data: str) -> str:
-    data = data.strip(' ')
-    data = data.strip(',')
-    data = data.strip('/')
-    return data
+    normalized_data = data.strip(' ')
+    normalized_data = normalized_data.strip(',')
+    normalized_data = normalized_data.strip('/')
+    normalized_data = normalized_data.strip('.')
+    return normalized_data
 
 
 # Преобразовать несколько ресурсов/ip в список ресурсов
@@ -46,88 +50,123 @@ def normalize_n(data: str) -> list:
     return normalize_data
 
 
+# Преобразовать список ресурсов через запятую
+def normalize_list(data: str) -> list:
+    normalized_data = data.split(', ')
+    return normalized_data
+
+
+def get_domains(data: str) -> list[str]:
+    normalized_data = None
+    if '\n' in data:
+        normalized_data = normalize_n(data)
+        data = normalized_data
+
+    if ', ' in data:
+        normalized_data = normalize_list(data)
+        data = normalized_data
+
+    if isinstance(data, str):
+        normalized_data = [data]
+
+    normalized_domains = []
+
+    for domain in normalized_data:
+        if 'http' in domain:
+            normalized_domains.append(normalize_http_https(domain))
+        else:
+            normalized_domains.append(domain)
+
+    normalized_domains_set = set()
+
+    for domain in normalized_domains:
+        if '/' in domain:
+            norm_domain = normalize_url(domain)
+            strip_domain = normalize_simbols(norm_domain)
+            normalized_domains_set.add(strip_domain)
+        else:
+            strip_domain = normalize_simbols(domain)
+            normalized_domains_set.add(strip_domain)
+
+    normalized_domains = list(normalized_domains_set)
+
+    return normalized_domains
+
+
+def get_ips(data: str) -> list[str]:
+    normalized_data = None
+    if '\n' in data:
+        normalized_data = normalize_n(data)
+
+    if ', ' in data:
+        normalized_data = normalize_list(data)
+        data = normalized_data
+
+    if isinstance(data, str):
+        normalized_data = [data]
+
+    return normalized_data
+
+
+def get_date(data: str) -> Optional[datetime]:
+    if not data:
+        return None
+    return parse_date(data)
+
+
 with open(FILE_NAME, 'r', encoding='utf-8') as f:
     reader = csv.DictReader(f, delimiter=';')
     resources = []
     for row in reader:
-        for key, value in row.items():
 
-            if not value:
-                continue
+        # IPs with domain name isn't interesting
+        if row['name']:
+            domains = get_domains(row['name'])
+        else:
+            domains = get_ips(row['ip'])
 
-            if '\n' in value and (key == 'name' or key == 'ip'):
-                normalized_value = normalize_n(value)
-                value = normalized_value
-                row[key] = normalized_value
+        added_date = get_date(row['added_date'])
+        description = row['description'] or None
+        order = row['order'] or None
+        resource_type = row['resource_type']
 
-            if (key == 'name' or key == 'ip') and isinstance(value, str):
-                row[key] = [value]
+        for domain in domains:
+            r = Resource()
+            r.name = domain
+            r.description = description
+            r.added_date = added_date
+            r.order = order
+            r.resource_type = resource_type
 
-            if key == 'added_date' and value:
-                row[key] = parse_date(value)
-
-            if key == 'name':
-                for domain in value:
-                    if 'http' in domain:
-                        normalized_domain = normalize_http_https(domain)
-                        row[key] = list(map(lambda x: x.replace(domain, normalized_domain), value))
-
-            if key == 'name':
-                for domain in value:
-                    if '/' in domain:
-                        normalized_domain = normalize_url(domain)
-                        row[key] = list(map(lambda x: x.replace(domain, normalized_domain), value))
-
-        resources.append(row)
+            resources.append(r)
 
 already_exists = []
 added_resources = []
 
 with app.app_context():
-    for res in resources:
-        print(res)
-
-        if not res['name']:
-            for ip in res['ip']:
-                resource = Resource()
-                resource.name = ip
-                resource.resource_type = res['resource_type']
-                resource.order = res['order']
-                resource.description = res['description']
-                resource.added_date = res['added_date'] or None
-                db.session.add(resource)
-
-        else:
-            for domain in res['name']:
-                resource = Resource()
-                resource.name = domain
-                resource.resource_type = res['resource_type']
-                resource.order = res['order']
-                resource.description = res['description']
-                resource.added_date = res['added_date'] or None
-                db.session.add(resource)
+    for resource in tqdm(resources):
+        db.session.add(resource)
 
         try:
             db.session.commit()
         except IntegrityError:
-            already_exists.append(res)
+            already_exists.append(resource)
             db.session.rollback()
             continue
 
-        try:
-            resource.update_ips()
-        except DNSConnectionError:
-            print('DNS is unreachable')
-            quit(1)
-        else:
-            added_resources.append(res)
+        for _ in range(2):
+            try:
+                resource.update_ips()
+            except DNSConnectionError:
+                print(resource.name)
+                print('DNS is unreachable. RETRYING...')
+                time.sleep(0.3)
+            else:
+                resource.status = Resource.STATUS_RESOLVED
+                added_resources.append(resource)
+                break
 
 print(f'Added: {len(added_resources)}')
-for _ in added_resources:
-    print(_)
-
-print('-' * 20, '\n')
-
 print(f'Already exists: {len(already_exists)}')
 for _ in already_exists:
-    print(_)
+    print(_.name)
