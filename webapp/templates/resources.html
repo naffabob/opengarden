@@ -76,7 +76,7 @@
 	{% for resource in resources %}
 	<tr class="{% if resource.status == 'error' %}table-danger{% endif %}">
 		<td><a href="{{ url_for('resource_view', resource_id=resource.id) }}">{{ resource.name }}</a></td>
-		<td>{{ resource.resolve_time.strftime("%Y-%m-%d %H:%M") }}</td>
+		<td>{% if resource.resolve_time %}{{ resource.resolve_time.strftime("%Y-%m-%d %H:%M") }}{% endif %}</td>
 		<td>{{ resource[8] }}</td>
 		<td>{{ resource.resource_type }}</td>
 		<td>{{ resource.order or '-'}}</td>

@@ -32,6 +32,6 @@ class ResourceForm(FlaskForm):
         format='%Y-%m-%d')
     resolve_time = DateField(render_kw={'class': 'form-control'})
     description = StringField(
-        validators=[Length(min=1, max=200)],
+        validators=[Length(min=0, max=200)],
         render_kw={'class': 'form-control'}
     )

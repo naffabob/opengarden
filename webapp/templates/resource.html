@@ -55,7 +55,7 @@
 			</div>
 		</form>
 		<p class="font-monospace">
-			Last resolve time: {{ resource.resolve_time.strftime("%Y-%m-%d %H:%M:%S") }}
+			Last resolve time: {% if resource.resolve_time %}{{ resource.resolve_time.strftime("%Y-%m-%d %H:%M") }}{% endif %}
 		</p>
 		<p class="font-monospace">
 			Last resolve status: {{ resource.status }}
