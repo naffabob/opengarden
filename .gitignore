@@ -8,3 +8,4 @@ settings.py
 networks.txt
 resources.txt
 failed_domains.txt
+resources_output.*
