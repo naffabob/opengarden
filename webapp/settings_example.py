@@ -20,3 +20,5 @@ JUNIPER_ROUTERS = ['r1', 'r2']
 
 username = 'user'
 password = 'pass'
+
+SENTRY_DSN = 'SENTRY_DSN'
