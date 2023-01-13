@@ -22,3 +22,6 @@ username = 'user'
 password = 'pass'
 
 SENTRY_DSN = 'SENTRY_DSN'
+
+LOG_FILE = '/var/log/og.log'
+LOG_LEVEL = 'INFO'
