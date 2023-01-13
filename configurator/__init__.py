@@ -4,9 +4,11 @@ from ipaddress import IPv4Network
 
 from loguru import logger
 from netmiko import ConnectHandler
+from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutException
 from tqdm import tqdm
 
 import netbox_client
+from webapp.settings import NB_BRASS_ID, NB_CISCO
 
 VENDOR_JUNIPER = 'juniper'
 VENDOR_CISCO = 'cisco'
@@ -35,6 +37,22 @@ ACL_NAMES_IN = [
     'TO-OPEN-GARDEN-2',
     'TO-OPEN-GARDEN-1.8',
 ]
+
+
+class OGTimeoutException(Exception):
+    pass
+
+
+class OGAuthenticationException(Exception):
+    pass
+
+
+class NetboxConnectionError(Exception):
+    pass
+
+
+class NetboxDeviceError(Exception):
+    pass
 
 
 class Status(Enum):
@@ -70,7 +88,8 @@ def configure(host: str, vendor: str, ips: set, username: str, password: str):
 def netlist_cisco(c: ConnectHandler, og_in: str, og_out: str) -> set:
     result = set()
     host_regexp = r'\d+\.\d+\.\d+\.\d+'
-    data = c.send_config_set([f'do show ip access-lists {og_in}', f'show ip access-lists {og_out}'])    # Enters in config mode
+    data = c.send_config_set(
+        [f'do show ip access-lists {og_in}', f'show ip access-lists {og_out}'])  # Enters in config mode
     for line in data.splitlines():
         if 'permit' in line:
             ip_mask = re.findall(host_regexp, line)
@@ -109,12 +128,18 @@ def get_diff(host: str, vendor: str, resolved_ips: set, username: str, password:
     if vendor not in VENDORS:
         raise ValueError(f'Unknown vendor {vendor}')
     if vendor == VENDOR_CISCO:
-        c = ConnectHandler(
-            host=host,
-            username=username,
-            password=password,
-            device_type='cisco_ios_telnet',
-        )
+        try:
+            c = ConnectHandler(
+                host=host,
+                username=username,
+                password=password,
+                device_type='cisco_ios_telnet',
+            )
+        except NetmikoAuthenticationException:
+            raise OGAuthenticationException from None
+        except NetmikoTimeoutException:
+            raise OGTimeoutException from None
+
         og_in, og_out = retrieve_acl_names(c)
 
         if not og_in and not og_out:
@@ -131,12 +156,17 @@ def get_diff(host: str, vendor: str, resolved_ips: set, username: str, password:
         diff_dict['to_add'] = sorted(resolved_ips - current_ips)
 
     elif vendor == VENDOR_JUNIPER:
-        c = ConnectHandler(
-            host=host,
-            username=username,
-            password=password,
-            device_type='juniper_junos',
-        )
+        try:
+            c = ConnectHandler(
+                host=host,
+                username=username,
+                password=password,
+                device_type='juniper_junos',
+            )
+        except NetmikoAuthenticationException:
+            raise OGAuthenticationException from None
+        except NetmikoTimeoutException:
+            raise OGTimeoutException from None
 
         current_ips = netlist_juniper(c)
 
@@ -164,12 +194,17 @@ def print_diff(current_ips: set, resolved_ips: set):
 
 
 def configure_cisco(host: str, ips: set, username: str, password: str):
-    c = ConnectHandler(
-        host=host,
-        username=username,
-        password=password,
-        device_type='cisco_ios_telnet',
-    )
+    try:
+        c = ConnectHandler(
+            host=host,
+            username=username,
+            password=password,
+            device_type='cisco_ios_telnet',
+        )
+    except NetmikoAuthenticationException:
+        raise OGAuthenticationException
+    except NetmikoTimeoutException:
+        raise OGTimeoutException
 
     og_in, og_out = retrieve_acl_names(c)
 
@@ -205,12 +240,18 @@ def configure_cisco(host: str, ips: set, username: str, password: str):
 
 
 def configure_juniper(host: str, ips: set, username: str, password: str):
-    c = ConnectHandler(
-        host=host,
-        username=username,
-        password=password,
-        device_type='juniper_junos',
-    )
+    try:
+        c = ConnectHandler(
+            host=host,
+            username=username,
+            password=password,
+            device_type='juniper_junos',
+        )
+    except NetmikoAuthenticationException:
+        raise OGAuthenticationException
+    except NetmikoTimeoutException:
+        raise OGTimeoutException
+
     current_ips = netlist_juniper(c)
 
     if current_ips == ips:
@@ -237,12 +278,18 @@ def generate_config(vendor: str, ips: set, host: str, username: str, password: s
     if vendor not in VENDORS:
         raise ValueError(f'Unknown vendor {vendor}')
     if vendor == VENDOR_CISCO:
-        c = ConnectHandler(
-            host=host,
-            username=username,
-            password=password,
-            device_type='cisco_ios_telnet',
-        )
+        try:
+            c = ConnectHandler(
+                host=host,
+                username=username,
+                password=password,
+                device_type='cisco_ios_telnet',
+            )
+        except NetmikoAuthenticationException:
+            raise OGAuthenticationException
+        except NetmikoTimeoutException:
+            raise OGTimeoutException
+
         og_in, og_out = retrieve_acl_names(c)
 
         if not og_in and not og_out:
@@ -297,10 +344,22 @@ def get_juniper_hosts(nb: netbox_client, allowed_routers: list) -> list[netbox_c
     for router in allowed_routers:
         try:
             host = nb.get_device(router)
-        except netbox_client.NBException as e:
-            raise SystemExit(e)
+        except netbox_client.NBException:
+            raise NetboxConnectionError
         if host is None:
-            raise SystemExit(f'No device in Netbox: {host}')
+            raise NetboxDeviceError
 
         juniper_hosts.append(host)
     return juniper_hosts
+
+
+def get_cisco_hosts(nb: netbox_client) -> list[netbox_client]:
+    try:
+        cisco_hosts = nb.dcim.devices.filter(status='active', role_id=NB_BRASS_ID, manufacturer_id=NB_CISCO)
+    except netbox_client.NBException:
+        raise NetboxConnectionError
+
+    if cisco_hosts is None:
+        raise NetboxDeviceError
+
+    return cisco_hosts
