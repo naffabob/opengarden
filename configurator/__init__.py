@@ -89,7 +89,12 @@ def netlist_cisco(c: ConnectHandler, og_in: str, og_out: str) -> set:
     result = set()
     host_regexp = r'\d+\.\d+\.\d+\.\d+'
     data = c.send_config_set(
-        [f'do show ip access-lists {og_in}', f'show ip access-lists {og_out}'])  # Enters in config mode
+        [
+            f'do show ip access-lists {og_in}',
+            f'show ip access-lists {og_out}',
+        ]
+    )
+
     for line in data.splitlines():
         if 'permit' in line:
             ip_mask = re.findall(host_regexp, line)

@@ -51,7 +51,7 @@ def resources_view():
                 try:
                     db.session.commit()
                 except IntegrityError:
-                    flash('Already exists.', category='error')
+                    flash('Already exists', category='error')
                     return redirect(back)
 
                 try:
@@ -100,7 +100,7 @@ def resource_view(resource_id):
                 try:
                     db.session.commit()
                 except IntegrityError:
-                    flash('Already exists.', category='error')
+                    flash('Already exists', category='error')
                     return redirect(back)
                 except Exception as e:
                     flash('DB error', category='error')
@@ -181,7 +181,6 @@ def device_view(hostname):
         flash('Netbox error')
         logging.exception(e)
         return redirect(back)
-
 
     allowed_hosts = juniper_hosts + cisco_hosts
 
