@@ -1,6 +1,7 @@
 from flask import render_template, url_for, request, flash, redirect, abort
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import func
+import logging
 
 import configurator
 import netbox_client
@@ -57,6 +58,9 @@ def resources_view():
                     resource.update_ips()
                 except DNSConnectionError:
                     flash('DNS is unreachable', category='error')
+                except Exception as e:
+                    flash('DNS error', category='error')
+                    logging.exception(e)
                 else:
                     flash('Resource successfully added', category='success')
 
@@ -98,11 +102,18 @@ def resource_view(resource_id):
                 except IntegrityError:
                     flash('Already exists.', category='error')
                     return redirect(back)
+                except Exception as e:
+                    flash('DB error', category='error')
+                    logging.exception(e)
+                    return redirect(back)
 
                 try:
                     resource.update_ips()
                 except DNSConnectionError:
                     flash('DNS is unreachable', category='error')
+                except Exception as e:
+                    flash('DNS error', category='error')
+                    logging.exception(e)
                 else:
                     flash('Resource successfully updated', category='success')
 
@@ -121,7 +132,9 @@ def resource_view(resource_id):
                 resource.update_ips()
             except DNSConnectionError:
                 flash('DNS is unreachable', category='error')
-
+            except Exception as e:
+                flash('DNS error', category='error')
+                logging.exception(e)
             return redirect(back)
 
     return render_template('resource.html', form=form, resource=resource)
@@ -142,6 +155,10 @@ def config_view():
     except configurator.NetboxDeviceError:
         flash('Hosts not found in Netbox')
         return redirect(back)
+    except Exception as e:
+        flash('Netbox error')
+        logging.exception(e)
+        return redirect(back)
 
     return render_template('devices.html', page_title=page_title, cisco_hosts=cisco_hosts, juniper_hosts=juniper_hosts)
 
@@ -160,6 +177,11 @@ def device_view(hostname):
     except configurator.NetboxDeviceError:
         flash('Hosts not found in Netbox')
         return redirect(back)
+    except Exception as e:
+        flash('Netbox error')
+        logging.exception(e)
+        return redirect(back)
+
 
     allowed_hosts = juniper_hosts + cisco_hosts
 
@@ -197,6 +219,10 @@ def device_view(hostname):
             except configurator.OGTimeoutException:
                 flash('Timeout error', category='error')
                 return redirect(back)
+            except Exception as e:
+                flash('Device error')
+                logging.exception(e)
+                return redirect(back)
 
             return render_template('device.html', host=host, diff=diff)
 
@@ -219,6 +245,10 @@ def device_view(hostname):
                 return redirect(back)
             except configurator.OGTimeoutException:
                 flash('Timeout error', category='error')
+                return redirect(back)
+            except Exception as e:
+                flash('Device error')
+                logging.exception(e)
                 return redirect(back)
 
             return render_template('device.html', host=host, device_config=device_config)
