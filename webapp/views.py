@@ -1,6 +1,7 @@
 from flask import render_template, url_for, request, flash, redirect, abort
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import func
+import logging
 
 import configurator
 import netbox_client
@@ -8,7 +9,7 @@ from resolver import DNSConnectionError
 from webapp import app
 from webapp.forms import ResourceForm
 from webapp.models import db, Resource, IP
-from webapp.settings import PREFIX, NB_URL, NB_API_TOKEN, NB_CISCO, NB_BRASS_ID, JUNIPER_ROUTERS, username, password
+from webapp.settings import PREFIX, NB_URL, NB_API_TOKEN, JUNIPER_ROUTERS, username, password
 
 
 @app.route(f'{PREFIX}/resources/', methods=['POST', 'GET'])
@@ -50,13 +51,16 @@ def resources_view():
                 try:
                     db.session.commit()
                 except IntegrityError:
-                    flash('Already exists.', category='error')
+                    flash('Already exists', category='error')
                     return redirect(back)
 
                 try:
                     resource.update_ips()
                 except DNSConnectionError:
                     flash('DNS is unreachable', category='error')
+                except Exception as e:
+                    flash('DNS error', category='error')
+                    logging.exception(e)
                 else:
                     flash('Resource successfully added', category='success')
 
@@ -96,13 +100,20 @@ def resource_view(resource_id):
                 try:
                     db.session.commit()
                 except IntegrityError:
-                    flash('Already exists.', category='error')
+                    flash('Already exists', category='error')
+                    return redirect(back)
+                except Exception as e:
+                    flash('DB error', category='error')
+                    logging.exception(e)
                     return redirect(back)
 
                 try:
                     resource.update_ips()
                 except DNSConnectionError:
                     flash('DNS is unreachable', category='error')
+                except Exception as e:
+                    flash('DNS error', category='error')
+                    logging.exception(e)
                 else:
                     flash('Resource successfully updated', category='success')
 
@@ -121,7 +132,9 @@ def resource_view(resource_id):
                 resource.update_ips()
             except DNSConnectionError:
                 flash('DNS is unreachable', category='error')
-
+            except Exception as e:
+                flash('DNS error', category='error')
+                logging.exception(e)
             return redirect(back)
 
     return render_template('resource.html', form=form, resource=resource)
@@ -130,11 +143,22 @@ def resource_view(resource_id):
 @app.route(f'{PREFIX}/config')
 def config_view():
     page_title = 'Config'
+    back = url_for('resources_view')
 
     nb = netbox_client.NetboxClient(NB_URL, NB_API_TOKEN)
-    cisco_hosts = nb.dcim.devices.filter(status='active', role_id=NB_BRASS_ID, manufacturer_id=NB_CISCO)
-
-    juniper_hosts = configurator.get_juniper_hosts(nb, JUNIPER_ROUTERS)
+    try:
+        cisco_hosts = configurator.get_cisco_hosts(nb)
+        juniper_hosts = configurator.get_juniper_hosts(nb, JUNIPER_ROUTERS)
+    except configurator.NetboxConnectionError:
+        flash('Netbox connection error', category='error')
+        return redirect(back)
+    except configurator.NetboxDeviceError:
+        flash('Hosts not found in Netbox')
+        return redirect(back)
+    except Exception as e:
+        flash('Netbox error')
+        logging.exception(e)
+        return redirect(back)
 
     return render_template('devices.html', page_title=page_title, cisco_hosts=cisco_hosts, juniper_hosts=juniper_hosts)
 
@@ -142,11 +166,21 @@ def config_view():
 @app.route(f'{PREFIX}/devices/<hostname>/', methods=['POST', 'GET'])
 def device_view(hostname):
     nb = netbox_client.NetboxClient(NB_URL, NB_API_TOKEN)
-    cisco_hosts = [
-        host for host in nb.dcim.devices.filter(status='active', role_id=NB_BRASS_ID, manufacturer_id=NB_CISCO)
-    ]
+    back = url_for('device_view', hostname=hostname)
 
-    juniper_hosts = configurator.get_juniper_hosts(nb, JUNIPER_ROUTERS)
+    try:
+        cisco_hosts = [host for host in configurator.get_cisco_hosts(nb)]
+        juniper_hosts = configurator.get_juniper_hosts(nb, JUNIPER_ROUTERS)
+    except configurator.NetboxConnectionError:
+        flash('Netbox connection error', category='error')
+        return redirect(back)
+    except configurator.NetboxDeviceError:
+        flash('Hosts not found in Netbox')
+        return redirect(back)
+    except Exception as e:
+        flash('Netbox error')
+        logging.exception(e)
+        return redirect(back)
 
     allowed_hosts = juniper_hosts + cisco_hosts
 
@@ -162,6 +196,7 @@ def device_view(hostname):
 
     if request.method == 'POST':
         action = request.form.get('action', None)
+        back = url_for('device_view', hostname=hostname)
 
         if action == 'diff':
             ips = IP.query.all()
@@ -169,13 +204,25 @@ def device_view(hostname):
 
             vendor = host.device_type.manufacturer.name.lower()
 
-            diff = configurator.get_diff(
-                host=host.primary_ip.address.split('/')[0],
-                username=username,
-                password=password,
-                vendor=vendor,
-                resolved_ips=resolved_ips,
-            )
+            try:
+                diff = configurator.get_diff(
+                    host=host.primary_ip.address.split('/')[0],
+                    username=username,
+                    password=password,
+                    vendor=vendor,
+                    resolved_ips=resolved_ips,
+                )
+            except configurator.OGAuthenticationException:
+                flash('Authentication error', category='error')
+                return redirect(back)
+            except configurator.OGTimeoutException:
+                flash('Timeout error', category='error')
+                return redirect(back)
+            except Exception as e:
+                flash('Device error')
+                logging.exception(e)
+                return redirect(back)
+
             return render_template('device.html', host=host, diff=diff)
 
         if action == 'generate':
@@ -184,13 +231,24 @@ def device_view(hostname):
 
             vendor = host.device_type.manufacturer.name.lower()
 
-            device_config = configurator.generate_config(
-                host=host.primary_ip.address.split('/')[0],
-                username=username,
-                password=password,
-                vendor=vendor,
-                ips=resolved_ips,
-            )
+            try:
+                device_config = configurator.generate_config(
+                    host=host.primary_ip.address.split('/')[0],
+                    username=username,
+                    password=password,
+                    vendor=vendor,
+                    ips=resolved_ips,
+                )
+            except configurator.OGAuthenticationException:
+                flash('Authentication error', category='error')
+                return redirect(back)
+            except configurator.OGTimeoutException:
+                flash('Timeout error', category='error')
+                return redirect(back)
+            except Exception as e:
+                flash('Device error')
+                logging.exception(e)
+                return redirect(back)
 
             return render_template('device.html', host=host, device_config=device_config)
 
