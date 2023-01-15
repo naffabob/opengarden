@@ -1,7 +1,8 @@
+import logging
+
 from flask import render_template, url_for, request, flash, redirect, abort
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.sql import func
-import logging
+from sqlalchemy.sql import func, or_
 
 import configurator
 import netbox_client
@@ -65,6 +66,20 @@ def resources_view():
                     flash('Resource successfully added', category='success')
 
                 return redirect(back)
+
+    search_str = request.args.get('search')
+    search = f'%{search_str}%'
+    if search_str:
+        resources = resources.filter(
+            or_(
+                Resource.name.like(search),
+                Resource.description.like(search),
+                Resource.order.like(search),
+                Resource.added_date.like(search),
+                Resource.resource_type.like(search),
+                Resource.resolve_time.like(search),
+            )
+        )
 
     return render_template('resources.html', form=input_form, resources=resources, page_title=page_title)
 

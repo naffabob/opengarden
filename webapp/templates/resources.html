@@ -1,8 +1,15 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<div class="row mb-3">
+	<div class="col-8">
+		<h3>Resources</h3>
+	</div>
+	<div class="col-4 text-end">
+		{% include 'search_form.html' %}
+	</div>
+</div>
 
-<h3>Resources</h3>
 <form class="row mb-3 gx-2" method="POST">
 	{{ form.hidden_tag() }}
 	<div class="col-auto">
@@ -59,27 +66,28 @@
 </form>
 
 
-<table class="table">
+<table class="table table-hover">
 	<thead>
 	<tr>
 		<th scope="col">Name</th>
 		<th scope="col">Resolve time</th>
 		<th scope="col">IPs</th>
 		<th scope="col">Type</th>
-		<th scope="col">Order</th>
 		<th scope="col">Add date</th>
-		<th scope="col">Description</th>
+		<th style="width: 450px" scope="col">Description</th>
 		<th scope="col"></th>
 	</tr>
 	</thead>
 	<tbody>
 	{% for resource in resources %}
 	<tr class="{% if resource.status == 'error' %}table-danger{% endif %}">
-		<td><a href="{{ url_for('resource_view', resource_id=resource.id) }}">{{ resource.name }}</a></td>
+		<td>
+			<a href="{{ url_for('resource_view', resource_id=resource.id) }}">{{ resource.name }}</a><br>
+			<span class="text-muted">{{ resource.order or ''}}</span>
+		</td>
 		<td>{% if resource.resolve_time %}{{ resource.resolve_time.strftime("%Y-%m-%d %H:%M") }}{% endif %}</td>
 		<td>{{ resource[8] }}</td>
 		<td>{{ resource.resource_type }}</td>
-		<td>{{ resource.order or '-'}}</td>
 		<td>{{ resource.added_date or '-'}}</td>
 		<td>{{ resource.description or '-' }}</td>
 		<td>
