@@ -243,6 +243,7 @@ def device_view(hostname):
         if action == 'generate':
             ips = IP.query.all()
             resolved_ips = set(ip.ip for ip in ips)
+            resolved_ips = sorted(resolved_ips)
 
             vendor = host.device_type.manufacturer.name.lower()
 
@@ -259,6 +260,37 @@ def device_view(hostname):
                 return redirect(back)
             except configurator.OGTimeoutException:
                 flash('Timeout error', category='error')
+                return redirect(back)
+            except Exception as e:
+                flash('Device error')
+                logging.exception(e)
+                return redirect(back)
+
+            return render_template('device.html', host=host, device_config=device_config)
+
+        if action == 'config':
+            ips = IP.query.all()
+            resolved_ips = set(ip.ip for ip in ips)
+            resolved_ips = sorted(resolved_ips)
+
+            vendor = host.device_type.manufacturer.name.lower()
+
+            try:
+                device_config = configurator.configure(
+                    host=host.primary_ip.address.split('/')[0],
+                    username=username,
+                    password=password,
+                    vendor=vendor,
+                    ips=resolved_ips,
+                )
+            except configurator.OGAuthenticationException:
+                flash('Authentication error', category='error')
+                return redirect(back)
+            except configurator.OGTimeoutException:
+                flash('Timeout error', category='error')
+                return redirect(back)
+            except configurator.OGWriteTimeoutException:
+                flash('Timeout while save configuration. Check device', category='error')
                 return redirect(back)
             except Exception as e:
                 flash('Device error')

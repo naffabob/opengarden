@@ -4,7 +4,7 @@ from ipaddress import IPv4Network
 
 from loguru import logger
 from netmiko import ConnectHandler
-from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutException
+from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutException, ReadTimeout
 from tqdm import tqdm
 
 import netbox_client
@@ -47,6 +47,10 @@ class OGAuthenticationException(Exception):
     pass
 
 
+class OGWriteTimeoutException(Exception):
+    pass
+
+
 class NetboxConnectionError(Exception):
     pass
 
@@ -59,12 +63,13 @@ class Status(Enum):
     OK = 1
     NOACL = 2
     UPTODATE = 3
+    DEVICECONFIGURED = 4
 
 
 def retrieve_acl_names(c: ConnectHandler) -> tuple:
     og_in = ''
     og_out = ''
-    output = c.send_command('sh access-lists | i list')
+    output = c.send_command('show ip access-lists | i list')
     for acl in ACL_NAMES_OUT:
         if acl in output:
             og_out = acl
@@ -76,7 +81,8 @@ def retrieve_acl_names(c: ConnectHandler) -> tuple:
     return og_in, og_out
 
 
-def configure(host: str, vendor: str, ips: set, username: str, password: str):
+def configure(host: str, vendor: str, ips: set, username: str, password: str) -> dict:
+
     if vendor not in VENDORS:
         raise ValueError(f'Unknown vendor {vendor}')
     if vendor == VENDOR_CISCO:
@@ -188,17 +194,16 @@ def get_diff(host: str, vendor: str, resolved_ips: set, username: str, password:
 def print_diff(current_ips: set, resolved_ips: set):
     to_delete = current_ips - resolved_ips
     to_add = resolved_ips - current_ips
-    print('IPs to delete:')  # For console user interface
-    for ip in to_delete:
-        print(ip)
-    print('IPs to add:')  # For console user interface
-    for ip in to_add:
-        print(ip)
 
     return to_delete, to_add
 
 
 def configure_cisco(host: str, ips: set, username: str, password: str):
+    config = {
+        'status': Status.OK,
+        'config_lines': []
+    }
+
     try:
         c = ConnectHandler(
             host=host,
@@ -213,17 +218,14 @@ def configure_cisco(host: str, ips: set, username: str, password: str):
 
     og_in, og_out = retrieve_acl_names(c)
 
+    if not og_in and not og_out:
+        config['status'] = Status.NOACL
+        return config
+
     current_ips = netlist_cisco(c, og_in, og_out)
-    if current_ips == ips:
-        logger.info(f'{host} is up to date')
-        return
-
-    print_diff(current_ips, ips)
-
-    if input(f'Would you like to update {host}? (y/n): ') != 'y':
-        return
 
     commands = generate_cisco(ips, og_in, og_out)
+    config['config_lines'] = commands
 
     c.config_mode()
 
@@ -240,11 +242,24 @@ def configure_cisco(host: str, ips: set, username: str, password: str):
 
     c.exit_config_mode()
 
-    c.send_command('write')
+    try:
+        c.send_command('write', read_timeout=40)
+    except ReadTimeout:
+        raise OGWriteTimeoutException
+
+    config['status'] = Status.DEVICECONFIGURED
+
     c.disconnect()
+
+    return config
 
 
 def configure_juniper(host: str, ips: set, username: str, password: str):
+    config = {
+        'status': Status.OK,
+        'config_lines': []
+    }
+
     try:
         c = ConnectHandler(
             host=host,
@@ -259,20 +274,13 @@ def configure_juniper(host: str, ips: set, username: str, password: str):
 
     current_ips = netlist_juniper(c)
 
-    if current_ips == ips:
-        logger.info(f'{host} is up to date')
-        return
-
-    print_diff(current_ips, ips)
-
-    if input(f'Would you like to update {host}? (y/n): ') != 'y':
-        return
-
     commands = generate_juniper(ips)
     commands.append('commit')
     c.send_config_set(commands, config_mode_command='configure exclusive')
     c.disconnect()
 
+    config['config_lines'] = commands
+    return config
 
 def generate_config(vendor: str, ips: set, host: str, username: str, password: str) -> dict:
     config = {

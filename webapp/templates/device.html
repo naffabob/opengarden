@@ -23,6 +23,9 @@
 		<div class="col-auto">
 			<button type="submit" class="btn btn-secondary" name="action" value="generate">Generate</button>
 		</div>
+		<div class="col-auto">
+			<button type="submit" class="btn btn-danger" name="action" value="config">Config</button>
+		</div>
 
 	</form>
 
@@ -37,7 +40,7 @@
 	<div class="alert alert-primary" role="alert">
 		Config is up to date with resolved IPs
 	</div>
-
+	
 	{% else %}
 	<div class="alert alert-info" role="alert">
 		There are differences in the device ACL and resolved IPs
@@ -62,7 +65,7 @@
 	</div>
 	{% endif %}
 	{% endif %}
-
+ 
 	{% if device_config %}
 
 	{% if device_config['status'].name == 'NOACL' %}
@@ -70,6 +73,11 @@
 		No OPENGARDEN ACL found for this device
 	</div>
 
+	{% elif device_config['status'].name == 'DEVICECONFIGURED' %}
+	<div class="alert alert-primary" role="alert">
+		Device configured
+	</div>
+	
 	{% else %}
 	<div class="row mb-3">
 		<p class="text-start console_text">
